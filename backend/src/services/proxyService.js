@@ -89,10 +89,11 @@ function buildUpstreamHeaders(req, upstreamUrl, tabId) {
   const refererTarget = decodeProxyUrl(req.headers.referer);
   if (refererTarget) {
     forwarded.referer = refererTarget.href;
-    forwarded.origin = refererTarget.origin;
-  } else if (req.headers.origin && req.headers.origin !== 'null') {
-    forwarded.origin = req.headers.origin;
   }
+
+  // Do not forward browser Origin to upstream by default.
+  // In a same-origin iframe proxy setup, the browser Origin is usually this app
+  // origin, which causes strict CSRF/CORS failures on many target sites.
 
   const cookieHeader = getUpstreamCookieHeader(tabId, upstreamUrl);
   if (cookieHeader) forwarded.cookie = cookieHeader;
@@ -188,14 +189,29 @@ function rewriteJavascriptForProxy(body, upstreamUrl) {
 
 function rewriteHtmlForProxy(body, upstreamUrl) {
   const { toProxyUrl } = createUrlHelpers(upstreamUrl);
+  const urlAttributes = [
+    'href',
+    'src',
+    'action',
+    'poster',
+    'formaction',
+    'data',
+    'manifest',
+    'ping'
+  ].join('|');
 
   let rewritten = body.replace(
-    /\s(href|src|action|poster)=["']([^"']+)["']/gi,
+    new RegExp(`\\s(${urlAttributes})=(['"])([^"']+)\\2`, 'gi'),
+    (full, attr, quote, value) => ` ${attr}=${quote}${toProxyUrl(value)}${quote}`
+  );
+
+  rewritten = rewritten.replace(
+    new RegExp(`\\s(${urlAttributes})=([^\\s"'=<>` + '`' + `]+)`, 'gi'),
     (full, attr, value) => ` ${attr}="${toProxyUrl(value)}"`
   );
 
   rewritten = rewritten.replace(
-    /\ssrcset=["']([^"']+)["']/gi,
+    /\s(?:srcset|imagesrcset)=["']([^"']+)["']/gi,
     (full, srcsetValue) => {
       const entries = srcsetValue
         .split(',')
@@ -238,7 +254,10 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   const originalFetch = window.fetch.bind(window);
   window.fetch = (resource, init) => {
     if (typeof resource === 'string') return originalFetch(toProxy(resource), init);
-    if (resource instanceof Request) return originalFetch(new Request(toProxy(resource.url), resource), init);
+    if (resource instanceof Request) {
+      const cloned = resource.clone();
+      return originalFetch(new Request(toProxy(cloned.url), cloned), init);
+    }
     return originalFetch(resource, init);
   };
 
@@ -246,6 +265,40 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
     return originalOpen.call(this, method, toProxy(url), ...rest);
   };
+
+  if (window.EventSource) {
+    const OriginalEventSource = window.EventSource;
+    window.EventSource = function(url, config) {
+      return new OriginalEventSource(toProxy(url), config);
+    };
+    window.EventSource.prototype = OriginalEventSource.prototype;
+  }
+
+  if (window.Worker) {
+    const OriginalWorker = window.Worker;
+    window.Worker = function(url, options) {
+      return new OriginalWorker(toProxy(url), options);
+    };
+    window.Worker.prototype = OriginalWorker.prototype;
+  }
+
+  if (window.SharedWorker) {
+    const OriginalSharedWorker = window.SharedWorker;
+    window.SharedWorker = function(url, options) {
+      return new OriginalSharedWorker(toProxy(url), options);
+    };
+    window.SharedWorker.prototype = OriginalSharedWorker.prototype;
+  }
+
+  if (navigator.serviceWorker && navigator.serviceWorker.register) {
+    const originalRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+    navigator.serviceWorker.register = (scriptURL, options) => originalRegister(toProxy(scriptURL), options);
+  }
+
+  if (navigator.sendBeacon) {
+    const originalSendBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = (url, data) => originalSendBeacon(toProxy(url), data);
+  }
 
   document.addEventListener('click', (event) => {
     const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
