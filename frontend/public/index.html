@@ -7,47 +7,41 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar glass">
-      <h1>Sigmund</h1>
-      <p class="muted">Responsible proxy platform</p>
-      <section>
-        <h2>Controls</h2>
-        <label><input id="toggleCache" type="checkbox" checked /> Cache</label>
-        <label>Timeout <input id="timeoutMs" type="number" value="20000" /></label>
-        <label>Header Mod JSON <textarea id="headersJson">{"x-forwarded-for":"sigmund"}</textarea></label>
-      </section>
-      <section>
-        <h2>Metrics</h2>
-        <div id="metrics"></div>
-      </section>
-      <section>
-        <h2>Errors</h2>
+  <main class="browser-shell">
+    <section class="viewport">
+      <iframe id="proxyFrame" title="Proxy viewport" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-downloads"></iframe>
+    </section>
+
+    <header id="controlBar" class="control-bar glass">
+      <div class="bar-left">
+        <select id="engineSelect" aria-label="Search engine"></select>
+        <div class="app-shortcuts" id="appShortcuts"></div>
+      </div>
+      <div class="bar-center">
+        <input id="urlInput" placeholder="Type a URL or search query..." autocomplete="off" />
+      </div>
+      <div class="bar-right">
+        <button id="goBtn" class="primary">Go</button>
+        <button id="newTabBtn" title="Open a fresh tab">New</button>
+        <button id="hideBarBtn" title="Hide controls">Hide</button>
+      </div>
+    </header>
+
+    <button id="floatingToggle" class="floating-toggle" aria-label="Show controls" hidden>☰</button>
+
+    <section id="statusDock" class="status-dock glass">
+      <div class="status-header">
+        <span>Status</span>
+        <button id="toggleStatusBtn">–</button>
+      </div>
+      <div id="statusBody" class="status-body">
+        <div id="metrics" class="metrics"></div>
         <div id="errorPanel" class="panel"></div>
-      </section>
-      <p class="disclaimer">Use only for lawful and authorized access. Misuse is prohibited.</p>
-    </aside>
-
-    <main class="main">
-      <header class="floating glass">
-        <div class="tabs" id="tabs"></div>
-        <div class="urlbar">
-          <input id="urlInput" placeholder="Enter URL (https://example.com)" />
-          <button id="goBtn">Go</button>
-          <button id="newTabBtn">+ Tab</button>
-        </div>
-      </header>
-
-      <section class="content glass">
-        <iframe id="proxyFrame" sandbox="allow-scripts allow-forms allow-same-origin allow-popups"></iframe>
-      </section>
-
-      <section class="logs glass">
-        <h3>Real-time Request Logs</h3>
         <pre id="logs"></pre>
-      </section>
-    </main>
-  </div>
+      </div>
+    </section>
+  </main>
+
   <script src="/app.js" defer></script>
 </body>
 </html>
