@@ -1,4 +1,5 @@
 import helmet from 'helmet';
+import expressRateLimit from 'express-rate-limit';
 import cors from 'cors';
 import { env } from '../config/env.js';
 
@@ -14,7 +15,7 @@ export const securityMiddleware = [
   })
 ];
 
-export const proxyNavigationRateLimiter = rateLimit({
+export const proxyNavigationRateLimiter = expressRateLimit({
   windowMs: 60_000,
   limit: env.maxRps,
   skip: shouldSkipNavigationRateLimit,
