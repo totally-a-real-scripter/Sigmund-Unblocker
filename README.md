@@ -67,14 +67,14 @@ Browser UI (tabs, url bar, dashboard)
    ```bash
    docker compose up --build
    ```
-3. Open `http://localhost:3000`.
+3. Open `http://localhost:3001`.
 
 ## Coolify Deployment (step-by-step)
 
 1. Create a new **Docker Compose** service in Coolify and point it to this repository.
 2. Keep `docker-compose.yml` as the deployment file.
 3. In Coolify environment settings, define variables from `.env.example` (at minimum `PUBLIC_PORT`, `WISP_PUBLIC_PORT`, `MAX_RPS`, `CACHE_ENABLED`, `REQUEST_TIMEOUT_MS`).
-4. Ensure public domain is routed to `backend` service port `3000`.
+4. Ensure public domain is routed to `backend` service port `3001`.
 5. Deploy. Coolify handles internal networking; backend resolves Wisp as `ws://wisp:4000`.
 6. After deploy, open `/api/health` to verify backend + metrics.
 

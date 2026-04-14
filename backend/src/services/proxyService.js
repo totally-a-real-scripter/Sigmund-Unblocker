@@ -23,6 +23,15 @@ function streamToClient(upstreamResponse, res) {
   }
 }
 
+function rewriteHtmlForProxy(body, upstreamUrl) {
+  const baseHref = `${upstreamUrl.origin}/`;
+  if (/<base\s/i.test(body)) return body;
+  if (/<head[^>]*>/i.test(body)) {
+    return body.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+  }
+  return `<base href="${baseHref}">${body}`;
+}
+
 export async function proxyHttpRequest(req, res) {
   const started = Date.now();
   const inputUrl = req.query.url;
@@ -68,7 +77,11 @@ export async function proxyHttpRequest(req, res) {
     eventBus.emit('log', { level: 'info', type: 'proxy', tabId, url: url.href, status: upstream.status, latencyMs: latency });
 
     if (env.cacheEnabled && req.method === 'GET') {
-      const body = await upstream.text();
+      const contentType = upstream.headers.get('content-type') || '';
+      let body = await upstream.text();
+      if (contentType.includes('text/html')) {
+        body = rewriteHtmlForProxy(body, url);
+      }
       const headers = Object.fromEntries(upstream.headers.entries());
       cache.set(cacheKey, { status: upstream.status, headers, body });
       res.status(upstream.status);
