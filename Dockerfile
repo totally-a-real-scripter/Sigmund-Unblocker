@@ -20,10 +20,11 @@ COPY backend/package.json ./
 COPY backend/pnpm-lock.yaml* ./
 COPY backend/.npmrc* ./
 
-# ✅ Allow scripts but skip problematic packages
-ENV PNPM_SKIP_BUILD=@mercuryworkshop/scramjet
+# 🚫 Block ALL scripts (prevents scramjet WASM build)
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
-RUN pnpm install --no-frozen-lockfile
+# ✅ Rebuild ONLY the package that needs it
+RUN pnpm rebuild @mercuryworkshop/epoxy-transport
 
 COPY backend/ ./
 
