@@ -161,11 +161,17 @@ function init() {
     });
   }
 
+  let floatingToggleIgnoreClickUntil = 0;
+
   function setControlsHidden(hidden) {
     state.controlsHidden = hidden;
     localStorage.setItem('sigmundControlsHidden', String(hidden));
     el.controlBar.hidden = hidden;
     el.floatingToggle.hidden = !hidden;
+
+    if (hidden) {
+      floatingToggleIgnoreClickUntil = Date.now() + 250;
+    }
   }
 
   function clampFloatingButton() {
@@ -213,6 +219,7 @@ function init() {
   el.newTabBtn.addEventListener('click', () => addNewTab());
   el.hideBarBtn.addEventListener('click', () => setControlsHidden(true));
   el.floatingToggle.addEventListener('click', () => {
+    if (Date.now() < floatingToggleIgnoreClickUntil) return;
     if (state.controlsHidden) setControlsHidden(false);
   });
 
