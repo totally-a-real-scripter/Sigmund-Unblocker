@@ -1,56 +1,36 @@
 ARG NODE_BASE_IMAGE=node:22-alpine
-FROM ${NODE_BASE_IMAGE} AS deps
+FROM ${NODE_BASE_IMAGE}
 
-WORKDIR /app
+WORKDIR /app/backend
 
+ENV NODE_ENV=production
 ENV PNPM_HOME=/pnpm
-ENV PATH=${PNPM_HOME}:${PATH}
-ENV NODE_ENV=development
+ENV PATH=$PNPM_HOME:$PATH
 
-# Install build tools + bash (required by some postinstall scripts)
+# System deps (minimal but safe for most node native builds)
 RUN apk add --no-cache \
   git \
   bash \
   python3 \
   make \
   g++ \
-  libc6-compat \
-  && corepack enable \
-  && corepack prepare pnpm@10.13.1 --activate
+  libc6-compat
 
-# Copy backend first
-COPY backend ./backend
+# Enable pnpm
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
-# Install ALL dependencies (NOT production-only) so build scripts succeed
-RUN set -eux; \
-  cp backend/package.json ./package.json; \
-  if [ -f backend/pnpm-lock.yaml ]; then cp backend/pnpm-lock.yaml ./pnpm-lock.yaml; fi; \
-  if [ -f backend/.npmrc ]; then cp backend/.npmrc ./.npmrc; fi; \
-  \
-  pnpm install --frozen-lockfile || pnpm install
+# Copy backend first (better caching)
+COPY backend/package.json ./
+COPY backend/pnpm-lock.yaml* ./
+COPY backend/.npmrc* ./
 
-# Build step (if your project has one)
-RUN if [ -f package.json ] && grep -q "\"build\"" package.json; then \
-      pnpm run build; \
-    fi
+# Copy full backend source
+COPY backend/ ./
 
-# Now prune to production deps only
-RUN pnpm prune --prod
-
-
-FROM ${NODE_BASE_IMAGE} AS runtime
-
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# runtime still needs bash if any scripts rely on it
-RUN apk add --no-cache bash
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY backend/package.json ./package.json
-COPY backend/src ./src
-COPY frontend/public ./frontend/public
+# IMPORTANT FIX:
+# - ignore scripts prevents wasm/cargo/git-based broken prepack hooks
+# - install only production deps for runtime image
+RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
 EXPOSE 3000
 
