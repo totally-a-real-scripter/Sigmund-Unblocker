@@ -24,5 +24,9 @@
     "scramjet": "github:mercuryworkshop/scramjet",
     "ultraviolet": "github:titaniumnetwork-dev/ultraviolet",
     "ws": "^8.18.0"
+  },
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=22"
   }
 }
