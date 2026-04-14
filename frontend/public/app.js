@@ -104,7 +104,7 @@ function init() {
     el.urlInput.value = targetUrl;
     if (persist) saveHistory(targetUrl);
 
-    const target = `/api/proxy?tabId=${encodeURIComponent(tab.id)}&url=${encodeURIComponent(targetUrl)}`;
+    const target = `/api/proxy?nav=1&tabId=${encodeURIComponent(tab.id)}&url=${encodeURIComponent(targetUrl)}`;
     el.proxyFrame.src = target;
     if (el.errorPanel) el.errorPanel.textContent = '';
   }
