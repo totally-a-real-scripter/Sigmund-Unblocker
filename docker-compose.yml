@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - wisp
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      WISP_WS_URL: ws://wisp:4000
+    ports:
+      - "${PUBLIC_PORT:-3000}:3000"
+    networks:
+      - proxy-net
+
+  wisp:
+    build:
+      context: .
+      dockerfile: wisp/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${WISP_PUBLIC_PORT:-4000}:4000"
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    driver: bridge
