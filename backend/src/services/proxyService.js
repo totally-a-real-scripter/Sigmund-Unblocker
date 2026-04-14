@@ -17,6 +17,7 @@ function streamToClient(upstreamResponse, res) {
     if (
       normalized === 'transfer-encoding' ||
       normalized === 'content-length' ||
+      normalized === 'content-encoding' ||
       normalized === 'content-security-policy' ||
       normalized === 'content-security-policy-report-only' ||
       normalized === 'x-frame-options' ||
@@ -185,6 +186,8 @@ export async function proxyHttpRequest(req, res) {
       const headers = Object.fromEntries(upstream.headers.entries());
       delete headers['content-length'];
       delete headers['Content-Length'];
+      delete headers['content-encoding'];
+      delete headers['Content-Encoding'];
       if (isHtml) {
         delete headers['content-security-policy'];
         delete headers['Content-Security-Policy'];
