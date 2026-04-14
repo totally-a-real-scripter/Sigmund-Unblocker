@@ -2,21 +2,8 @@ import helmet from 'helmet';
 import cors from 'cors';
 import { env } from '../config/env.js';
 
-const SKIPPED_FETCH_DESTINATIONS = new Set([
-  'audio',
-  'font',
-  'image',
-  'manifest',
-  'object',
-  'script',
-  'style',
-  'track',
-  'video'
-]);
-
-function shouldSkipRateLimit(req) {
-  const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
-  return SKIPPED_FETCH_DESTINATIONS.has(dest);
+function shouldSkipNavigationRateLimit(req) {
+  return req.query.nav !== '1';
 }
 
 export const securityMiddleware = [
@@ -27,10 +14,10 @@ export const securityMiddleware = [
   })
 ];
 
-export const proxyRateLimiter = rateLimit({
+export const proxyNavigationRateLimiter = rateLimit({
   windowMs: 60_000,
   limit: env.maxRps,
-  skip: shouldSkipRateLimit,
+  skip: shouldSkipNavigationRateLimit,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Rate limit exceeded.' }

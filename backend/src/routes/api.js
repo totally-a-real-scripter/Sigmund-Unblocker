@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { proxyHttpRequest } from '../services/proxyService.js';
 import { metricsService } from '../services/metricsService.js';
-import { proxyRateLimiter } from '../middleware/security.js';
+import { proxyNavigationRateLimiter } from '../middleware/security.js';
 
 export const apiRouter = Router();
 
@@ -9,7 +9,7 @@ apiRouter.get('/health', (req, res) => {
   res.json({ ok: true, service: 'sigmund-unblocker', metrics: metricsService.snapshot() });
 });
 
-apiRouter.all('/proxy', proxyRateLimiter, proxyHttpRequest);
+apiRouter.all('/proxy', proxyNavigationRateLimiter, proxyHttpRequest);
 
 apiRouter.get('/metrics', (req, res) => {
   res.json(metricsService.snapshot());
