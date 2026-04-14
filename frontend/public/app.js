@@ -26,23 +26,6 @@ const state = {
 state.activeTabId = state.tabs[0].id;
 if (!SEARCH_ENGINES[state.selectedEngine]) state.selectedEngine = 'duckduckgo';
 
-const el = {
-  urlInput: document.getElementById('urlInput'),
-  proxyFrame: document.getElementById('proxyFrame'),
-  goBtn: document.getElementById('goBtn'),
-  newTabBtn: document.getElementById('newTabBtn'),
-  hideBarBtn: document.getElementById('hideBarBtn'),
-  controlBar: document.getElementById('controlBar'),
-  floatingToggle: document.getElementById('floatingToggle'),
-  engineSelect: document.getElementById('engineSelect'),
-  appShortcuts: document.getElementById('appShortcuts'),
-  logs: document.getElementById('logs'),
-  metrics: document.getElementById('metrics'),
-  errorPanel: document.getElementById('errorPanel'),
-  statusBody: document.getElementById('statusBody'),
-  toggleStatusBtn: document.getElementById('toggleStatusBtn')
-};
-
 function activeTab() {
   return state.tabs.find((tab) => tab.id === state.activeTabId);
 }
@@ -83,152 +66,188 @@ function titleFromUrl(url) {
   }
 }
 
-function navigate(input, persist = true) {
-  const targetUrl = normalizeUrlOrSearch(input);
-  if (!targetUrl) {
-    el.errorPanel.textContent = 'Invalid URL or query.';
+function init() {
+  const el = {
+    urlInput: document.getElementById('urlInput'),
+    proxyFrame: document.getElementById('proxyFrame'),
+    goBtn: document.getElementById('goBtn'),
+    newTabBtn: document.getElementById('newTabBtn'),
+    hideBarBtn: document.getElementById('hideBarBtn'),
+    controlBar: document.getElementById('controlBar'),
+    floatingToggle: document.getElementById('floatingToggle'),
+    engineSelect: document.getElementById('engineSelect'),
+    appShortcuts: document.getElementById('appShortcuts'),
+    logs: document.getElementById('logs'),
+    metrics: document.getElementById('metrics'),
+    errorPanel: document.getElementById('errorPanel'),
+    statusBody: document.getElementById('statusBody'),
+    toggleStatusBtn: document.getElementById('toggleStatusBtn')
+  };
+
+  const required = ['urlInput', 'proxyFrame', 'goBtn', 'newTabBtn', 'hideBarBtn', 'controlBar', 'floatingToggle', 'engineSelect', 'appShortcuts'];
+  const missing = required.filter((key) => !el[key]);
+  if (missing.length) {
+    console.error(`Sigmund UI failed to initialize. Missing elements: ${missing.join(', ')}`);
     return;
   }
 
-  const tab = activeTab();
-  tab.url = targetUrl;
-  tab.title = titleFromUrl(targetUrl);
-  el.urlInput.value = targetUrl;
-  if (persist) saveHistory(targetUrl);
+  function navigate(input, persist = true) {
+    const targetUrl = normalizeUrlOrSearch(input);
+    if (!targetUrl) {
+      if (el.errorPanel) el.errorPanel.textContent = 'Invalid URL or query.';
+      return;
+    }
 
-  const target = `/api/proxy?tabId=${encodeURIComponent(tab.id)}&url=${encodeURIComponent(targetUrl)}`;
-  el.proxyFrame.src = target;
-  el.errorPanel.textContent = '';
-}
+    const tab = activeTab();
+    tab.url = targetUrl;
+    tab.title = titleFromUrl(targetUrl);
+    el.urlInput.value = targetUrl;
+    if (persist) saveHistory(targetUrl);
 
-function bootLogStream() {
-  const stream = new EventSource('/logs/stream');
-  stream.onmessage = (event) => {
-    const line = JSON.parse(event.data);
-    if (line.level === 'error') el.errorPanel.textContent = line.message || 'Proxy error';
-    el.logs.textContent = `${JSON.stringify(line)}\n${el.logs.textContent}`.slice(0, 10000);
-  };
-}
+    const target = `/api/proxy?tabId=${encodeURIComponent(tab.id)}&url=${encodeURIComponent(targetUrl)}`;
+    el.proxyFrame.src = target;
+    if (el.errorPanel) el.errorPanel.textContent = '';
+  }
 
-async function refreshMetrics() {
-  const resp = await fetch('/api/metrics');
-  const data = await resp.json();
-  el.metrics.textContent = [
-    `Engine: ${SEARCH_ENGINES[state.selectedEngine].name}`,
-    `Requests: ${data.requests}`,
-    `Errors: ${data.errors}`,
-    `Avg latency: ${data.avgLatencyMs}ms`,
-    `Active tabs: ${data.activeTabCount}`
-  ].join('\n');
-}
+  function bootLogStream() {
+    if (!el.logs) return;
+    const stream = new EventSource('/logs/stream');
+    stream.onmessage = (event) => {
+      const line = JSON.parse(event.data);
+      if (line.level === 'error' && el.errorPanel) el.errorPanel.textContent = line.message || 'Proxy error';
+      el.logs.textContent = `${JSON.stringify(line)}\n${el.logs.textContent}`.slice(0, 10000);
+    };
+  }
 
-function addNewTab(url = 'https://duckduckgo.com') {
-  const tab = { id: crypto.randomUUID(), title: titleFromUrl(url), url };
-  state.tabs.push(tab);
-  state.activeTabId = tab.id;
-  navigate(url, false);
-}
+  async function refreshMetrics() {
+    if (!el.metrics) return;
+    const resp = await fetch('/api/metrics');
+    const data = await resp.json();
+    el.metrics.textContent = [
+      `Engine: ${SEARCH_ENGINES[state.selectedEngine].name}`,
+      `Requests: ${data.requests}`,
+      `Errors: ${data.errors}`,
+      `Avg latency: ${data.avgLatencyMs}ms`,
+      `Active tabs: ${data.activeTabCount}`
+    ].join('\n');
+  }
 
-function populateEngineSelect() {
-  el.engineSelect.innerHTML = '';
-  Object.entries(SEARCH_ENGINES).forEach(([key, value]) => {
-    const option = document.createElement('option');
-    option.value = key;
-    option.textContent = value.name;
-    if (state.selectedEngine === key) option.selected = true;
-    el.engineSelect.appendChild(option);
+  function addNewTab(url = 'https://duckduckgo.com') {
+    const tab = { id: crypto.randomUUID(), title: titleFromUrl(url), url };
+    state.tabs.push(tab);
+    state.activeTabId = tab.id;
+    navigate(url, false);
+  }
+
+  function populateEngineSelect() {
+    el.engineSelect.innerHTML = '';
+    Object.entries(SEARCH_ENGINES).forEach(([key, value]) => {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = value.name;
+      if (state.selectedEngine === key) option.selected = true;
+      el.engineSelect.appendChild(option);
+    });
+  }
+
+  function populateAppShortcuts() {
+    APP_SHORTCUTS.forEach((app) => {
+      const btn = document.createElement('button');
+      btn.className = 'app-shortcut';
+      btn.type = 'button';
+      btn.textContent = app.label;
+      btn.addEventListener('click', () => navigate(app.url));
+      el.appShortcuts.appendChild(btn);
+    });
+  }
+
+  function setControlsHidden(hidden) {
+    state.controlsHidden = hidden;
+    localStorage.setItem('sigmundControlsHidden', String(hidden));
+    el.controlBar.hidden = hidden;
+    el.floatingToggle.hidden = !hidden;
+  }
+
+  function clampFloatingButton() {
+    const margin = 8;
+    const maxX = window.innerWidth - el.floatingToggle.offsetWidth - margin;
+    const maxY = window.innerHeight - el.floatingToggle.offsetHeight - margin;
+    const x = Math.min(Math.max(state.floatingPos.x ?? window.innerWidth - 60, margin), maxX);
+    const y = Math.min(Math.max(state.floatingPos.y ?? 16, margin), maxY);
+    state.floatingPos = { x, y };
+    el.floatingToggle.style.left = `${x}px`;
+    el.floatingToggle.style.top = `${y}px`;
+  }
+
+  function makeFloatingDraggable() {
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    let dragging = false;
+
+    el.floatingToggle.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      const rect = el.floatingToggle.getBoundingClientRect();
+      dragOffsetX = event.clientX - rect.left;
+      dragOffsetY = event.clientY - rect.top;
+      el.floatingToggle.setPointerCapture(event.pointerId);
+    });
+
+    el.floatingToggle.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      state.floatingPos.x = event.clientX - dragOffsetX;
+      state.floatingPos.y = event.clientY - dragOffsetY;
+      clampFloatingButton();
+    });
+
+    const stopDragging = () => {
+      if (!dragging) return;
+      dragging = false;
+      localStorage.setItem('sigmundFloatingPos', JSON.stringify(state.floatingPos));
+    };
+
+    el.floatingToggle.addEventListener('pointerup', stopDragging);
+    el.floatingToggle.addEventListener('pointercancel', stopDragging);
+  }
+
+  el.goBtn.addEventListener('click', () => navigate(el.urlInput.value));
+  el.newTabBtn.addEventListener('click', () => addNewTab());
+  el.hideBarBtn.addEventListener('click', () => setControlsHidden(true));
+  el.floatingToggle.addEventListener('click', () => {
+    if (state.controlsHidden) setControlsHidden(false);
   });
-}
 
-function populateAppShortcuts() {
-  APP_SHORTCUTS.forEach((app) => {
-    const btn = document.createElement('button');
-    btn.className = 'app-shortcut';
-    btn.type = 'button';
-    btn.textContent = app.label;
-    btn.addEventListener('click', () => navigate(app.url));
-    el.appShortcuts.appendChild(btn);
-  });
-}
-
-function setControlsHidden(hidden) {
-  state.controlsHidden = hidden;
-  localStorage.setItem('sigmundControlsHidden', String(hidden));
-  el.controlBar.hidden = hidden;
-  el.floatingToggle.hidden = !hidden;
-}
-
-function clampFloatingButton() {
-  const margin = 8;
-  const maxX = window.innerWidth - el.floatingToggle.offsetWidth - margin;
-  const maxY = window.innerHeight - el.floatingToggle.offsetHeight - margin;
-  const x = Math.min(Math.max(state.floatingPos.x ?? window.innerWidth - 60, margin), maxX);
-  const y = Math.min(Math.max(state.floatingPos.y ?? 16, margin), maxY);
-  state.floatingPos = { x, y };
-  el.floatingToggle.style.left = `${x}px`;
-  el.floatingToggle.style.top = `${y}px`;
-}
-
-function makeFloatingDraggable() {
-  let dragOffsetX = 0;
-  let dragOffsetY = 0;
-  let dragging = false;
-
-  el.floatingToggle.addEventListener('pointerdown', (event) => {
-    dragging = true;
-    const rect = el.floatingToggle.getBoundingClientRect();
-    dragOffsetX = event.clientX - rect.left;
-    dragOffsetY = event.clientY - rect.top;
-    el.floatingToggle.setPointerCapture(event.pointerId);
+  el.urlInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') navigate(el.urlInput.value);
   });
 
-  el.floatingToggle.addEventListener('pointermove', (event) => {
-    if (!dragging) return;
-    state.floatingPos.x = event.clientX - dragOffsetX;
-    state.floatingPos.y = event.clientY - dragOffsetY;
-    clampFloatingButton();
+  el.engineSelect.addEventListener('change', (event) => {
+    state.selectedEngine = event.target.value;
+    localStorage.setItem('sigmundSearchEngine', state.selectedEngine);
+    refreshMetrics().catch(() => null);
   });
 
-  const stopDragging = () => {
-    if (!dragging) return;
-    dragging = false;
-    localStorage.setItem('sigmundFloatingPos', JSON.stringify(state.floatingPos));
-  };
+  if (el.toggleStatusBtn && el.statusBody) {
+    el.toggleStatusBtn.addEventListener('click', () => {
+      const collapsed = el.statusBody.classList.toggle('collapsed');
+      el.toggleStatusBtn.textContent = collapsed ? '+' : '–';
+    });
+  }
 
-  el.floatingToggle.addEventListener('pointerup', stopDragging);
-  el.floatingToggle.addEventListener('pointercancel', stopDragging);
-}
+  window.addEventListener('resize', clampFloatingButton);
 
-el.goBtn.addEventListener('click', () => navigate(el.urlInput.value));
-el.newTabBtn.addEventListener('click', () => addNewTab());
-el.hideBarBtn.addEventListener('click', () => setControlsHidden(true));
-el.floatingToggle.addEventListener('click', () => {
-  if (state.controlsHidden) setControlsHidden(false);
-});
-
-el.urlInput.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') navigate(el.urlInput.value);
-});
-
-el.engineSelect.addEventListener('change', (event) => {
-  state.selectedEngine = event.target.value;
-  localStorage.setItem('sigmundSearchEngine', state.selectedEngine);
+  populateEngineSelect();
+  populateAppShortcuts();
+  setControlsHidden(state.controlsHidden);
+  clampFloatingButton();
+  makeFloatingDraggable();
+  bootLogStream();
+  setInterval(() => refreshMetrics().catch(() => null), 5000);
   refreshMetrics().catch(() => null);
-});
+  navigate(activeTab().url, false);
+}
 
-el.toggleStatusBtn.addEventListener('click', () => {
-  const collapsed = el.statusBody.classList.toggle('collapsed');
-  el.toggleStatusBtn.textContent = collapsed ? '+' : '–';
-});
-
-window.addEventListener('resize', clampFloatingButton);
-
-populateEngineSelect();
-populateAppShortcuts();
-setControlsHidden(state.controlsHidden);
-clampFloatingButton();
-makeFloatingDraggable();
-bootLogStream();
-setInterval(() => refreshMetrics().catch(() => null), 5000);
-refreshMetrics().catch(() => null);
-navigate(activeTab().url, false);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
