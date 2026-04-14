@@ -8,12 +8,13 @@ export const securityMiddleware = [
   cors({
     origin: env.allowedOrigins.includes('*') ? true : env.allowedOrigins,
     credentials: true
-  }),
-  rateLimit({
-    windowMs: 60_000,
-    limit: env.maxRps,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { error: 'Rate limit exceeded.' }
   })
 ];
+
+export const proxyRateLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: env.maxRps,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Rate limit exceeded.' }
+});
