@@ -89,9 +89,17 @@ function buildUpstreamHeaders(req, upstreamUrl, tabId) {
   const refererTarget = decodeProxyUrl(req.headers.referer);
   if (refererTarget) {
     forwarded.referer = refererTarget.href;
-    forwarded.origin = refererTarget.origin;
-  } else if (req.headers.origin && req.headers.origin !== 'null') {
-    forwarded.origin = req.headers.origin;
+  }
+
+  if (req.headers.origin && req.headers.origin !== 'null') {
+    // Browser-originated requests against this proxy always present this app's
+    // origin. Forwarding that value upstream breaks many CSRF/CORS checks.
+    // Prefer a derived origin from the decoded upstream referer when available.
+    if (refererTarget) {
+      forwarded.origin = refererTarget.origin;
+    } else if (req.headers.origin !== req.protocol + '://' + req.get('host')) {
+      forwarded.origin = req.headers.origin;
+    }
   }
 
   const cookieHeader = getUpstreamCookieHeader(tabId, upstreamUrl);
@@ -188,14 +196,29 @@ function rewriteJavascriptForProxy(body, upstreamUrl) {
 
 function rewriteHtmlForProxy(body, upstreamUrl) {
   const { toProxyUrl } = createUrlHelpers(upstreamUrl);
+  const urlAttributes = [
+    'href',
+    'src',
+    'action',
+    'poster',
+    'formaction',
+    'data',
+    'manifest',
+    'ping'
+  ].join('|');
 
   let rewritten = body.replace(
-    /\s(href|src|action|poster)=["']([^"']+)["']/gi,
+    new RegExp(`\\s(${urlAttributes})=(['"])([^"']+)\\2`, 'gi'),
+    (full, attr, quote, value) => ` ${attr}=${quote}${toProxyUrl(value)}${quote}`
+  );
+
+  rewritten = rewritten.replace(
+    new RegExp(`\\s(${urlAttributes})=([^\\s"'=<>` + '`' + `]+)`, 'gi'),
     (full, attr, value) => ` ${attr}="${toProxyUrl(value)}"`
   );
 
   rewritten = rewritten.replace(
-    /\ssrcset=["']([^"']+)["']/gi,
+    /\s(?:srcset|imagesrcset)=["']([^"']+)["']/gi,
     (full, srcsetValue) => {
       const entries = srcsetValue
         .split(',')
