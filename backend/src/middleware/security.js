@@ -1,5 +1,4 @@
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import cors from 'cors';
 import { env } from '../config/env.js';
 
