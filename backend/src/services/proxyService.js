@@ -114,13 +114,16 @@ function streamToClient(upstreamResponse, res) {
   }
 }
 
-function rewriteHtmlForProxy(body, upstreamUrl) {
+function createUrlHelpers(upstreamUrl) {
   const proxyPrefix = '/api/proxy?url=';
-  const toAbsoluteUrl = (rawUrl) => {
+
+  const toAbsoluteUrl = (rawUrl = '') => {
     const value = rawUrl.trim();
     if (!value || value.startsWith('#') || value.startsWith('data:') || value.startsWith('javascript:') || value.startsWith('blob:')) {
       return null;
     }
+    const isLikelyBareModuleSpecifier = !value.startsWith('/') && !value.startsWith('.') && !value.startsWith('//') && !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value);
+    if (isLikelyBareModuleSpecifier) return null;
 
     if (value.startsWith('//')) return `${upstreamUrl.protocol}${value}`;
     try {
@@ -130,11 +133,52 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
     }
   };
 
-  const toProxyUrl = (rawUrl) => {
+  const toProxyUrl = (rawUrl = '') => {
     const absolute = toAbsoluteUrl(rawUrl);
     if (!absolute) return rawUrl;
     return `${proxyPrefix}${encodeURIComponent(absolute)}`;
   };
+
+  return { toProxyUrl };
+}
+
+function rewriteCssForProxy(body, upstreamUrl) {
+  const { toProxyUrl } = createUrlHelpers(upstreamUrl);
+  let rewritten = body.replace(
+    /url\(\s*(['"]?)([^"')]+)\1\s*\)/gi,
+    (full, quote, value) => `url("${toProxyUrl(value)}")`
+  );
+
+  rewritten = rewritten.replace(
+    /@import\s+(?:url\()?\s*(['"])([^"']+)\1\s*\)?/gi,
+    (full, quote, value) => full.replace(value, toProxyUrl(value))
+  );
+
+  return rewritten;
+}
+
+function rewriteJavascriptForProxy(body, upstreamUrl) {
+  const { toProxyUrl } = createUrlHelpers(upstreamUrl);
+  let rewritten = body.replace(
+    /\b(from\s*['"])([^'"]+)(['"])/g,
+    (full, prefix, value, suffix) => `${prefix}${toProxyUrl(value)}${suffix}`
+  );
+
+  rewritten = rewritten.replace(
+    /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+    (full, quote, value) => `import(${quote}${toProxyUrl(value)}${quote})`
+  );
+
+  rewritten = rewritten.replace(
+    /\bnew\s+Worker\(\s*(['"])([^'"]+)\1/g,
+    (full, quote, value) => `new Worker(${quote}${toProxyUrl(value)}${quote}`
+  );
+
+  return rewritten;
+}
+
+function rewriteHtmlForProxy(body, upstreamUrl) {
+  const { toProxyUrl } = createUrlHelpers(upstreamUrl);
 
   let rewritten = body.replace(
     /\s(href|src|action|poster)=["']([^"']+)["']/gi,
@@ -259,11 +303,17 @@ export async function proxyHttpRequest(req, res) {
     const contentType = upstream.headers.get('content-type') || '';
     const isTextLike = /^text\/|application\/(javascript|json|xml|x-www-form-urlencoded)/i.test(contentType);
     const isHtml = contentType.includes('text/html');
+    const isCss = contentType.includes('text/css');
+    const isJavascript = /javascript|ecmascript|x-javascript/i.test(contentType);
 
     if (isTextLike) {
       let body = await upstream.text();
       if (isHtml) {
         body = rewriteHtmlForProxy(body, url);
+      } else if (isCss) {
+        body = rewriteCssForProxy(body, url);
+      } else if (isJavascript) {
+        body = rewriteJavascriptForProxy(body, url);
       }
 
       const headers = Object.fromEntries(upstream.headers.entries());
