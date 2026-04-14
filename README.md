@@ -8,7 +8,6 @@ A containerized proxy platform that orchestrates **Ultraviolet + Scramjet + Epox
 .
 ├── Dockerfile
 ├── backend/
-│   ├── Dockerfile (compatibility wrapper)
 │   ├── package.json
 │   └── src/
 │       ├── config/env.js
