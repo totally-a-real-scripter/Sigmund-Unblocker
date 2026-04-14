@@ -1,12 +1,12 @@
-FROM node:22-alpine AS runtime
+# Allow overriding the base image for environments where Docker Hub access is restricted.
+ARG NODE_BASE_IMAGE=node:22-alpine
+FROM ${NODE_BASE_IMAGE} AS runtime
 
 WORKDIR /app
 
-# Install production dependencies for the Node orchestrator
 COPY backend/package.json ./package.json
 RUN npm install --omit=dev
 
-# Copy backend source + static frontend bundle
 COPY backend/src ./src
 COPY frontend/public ./frontend/public
 

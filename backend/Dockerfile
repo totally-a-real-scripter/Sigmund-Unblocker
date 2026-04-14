@@ -1,4 +1,5 @@
-FROM node:22-alpine AS runtime
+ARG NODE_BASE_IMAGE=node:22-alpine
+FROM ${NODE_BASE_IMAGE} AS runtime
 WORKDIR /app
 COPY backend/package.json ./package.json
 RUN npm install --omit=dev

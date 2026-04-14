@@ -84,3 +84,13 @@ Browser UI (tabs, url bar, dashboard)
 - Increase `MAX_RPS` cautiously to prevent abuse.
 - Use `DOMAIN_ALLOWLIST` in managed/education deployments.
 - Set `CACHE_ENABLED=false` when troubleshooting origin consistency.
+
+
+## Registry timeout fix (Coolify / restricted networks)
+
+If build logs show timeouts pulling `node:22-alpine` from Docker Hub, set a reachable mirror image in Coolify env vars:
+
+- `NODE_BASE_IMAGE` (for example `docker.io/library/node:22-alpine` or your internal mirror)
+- `PYTHON_BASE_IMAGE` (for example `docker.io/library/python:3.12-slim` or your internal mirror)
+
+`docker-compose.yml` forwards these values as build args so you can switch registries without code changes.
