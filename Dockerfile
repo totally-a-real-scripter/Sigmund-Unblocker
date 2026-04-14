@@ -51,6 +51,7 @@ RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 # Copy built app
 COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend ./
+COPY frontend/ /app/frontend/
 
 EXPOSE 3001
 
