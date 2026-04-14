@@ -14,3 +14,5 @@ apiRouter.all('/proxy', proxyNavigationRateLimiter, proxyHttpRequest);
 apiRouter.get('/metrics', (req, res) => {
   res.json(metricsService.snapshot());
 });
+
+apiRouter.all('/*', proxyHttpRequest);

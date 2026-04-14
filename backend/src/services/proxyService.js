@@ -58,6 +58,15 @@ function decodeProxyUrl(value) {
   }
 }
 
+function decodeHtmlEntities(value = '') {
+  return value
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
 function buildUpstreamHeaders(req, upstreamUrl, tabId) {
   const forwarded = {
     'user-agent': env.userAgent,
@@ -118,7 +127,7 @@ function createUrlHelpers(upstreamUrl) {
   const proxyPrefix = '/api/proxy?url=';
 
   const toAbsoluteUrl = (rawUrl = '') => {
-    const value = rawUrl.trim();
+    const value = decodeHtmlEntities(rawUrl).trim();
     if (!value || value.startsWith('#') || value.startsWith('data:') || value.startsWith('javascript:') || value.startsWith('blob:')) {
       return null;
     }
@@ -255,9 +264,23 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   return `${runtimePatch}${rewritten}`;
 }
 
+function resolveFallbackProxyTarget(req) {
+  const refererTarget = decodeProxyUrl(req.headers.referer);
+  if (!refererTarget) return null;
+
+  const relativeRequest = req.url.startsWith('/') ? req.url.slice(1) : req.url;
+  if (!relativeRequest || relativeRequest.startsWith('proxy')) return null;
+
+  try {
+    return new URL(relativeRequest, refererTarget.href).href;
+  } catch {
+    return null;
+  }
+}
+
 export async function proxyHttpRequest(req, res) {
   const started = Date.now();
-  const inputUrl = req.query.url;
+  const inputUrl = req.query.url || resolveFallbackProxyTarget(req);
   const tabId = req.query.tabId || req.headers['x-tab-id'] || 'default';
   const url = normalizeUrl(inputUrl);
 
