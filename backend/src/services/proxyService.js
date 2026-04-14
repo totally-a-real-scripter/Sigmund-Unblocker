@@ -13,7 +13,15 @@ const cache = new LRUCache({
 function streamToClient(upstreamResponse, res) {
   res.status(upstreamResponse.status);
   upstreamResponse.headers.forEach((value, key) => {
-    if (key.toLowerCase() === 'transfer-encoding') return;
+    const normalized = key.toLowerCase();
+    if (
+      normalized === 'transfer-encoding' ||
+      normalized === 'content-length' ||
+      normalized === 'content-security-policy' ||
+      normalized === 'content-security-policy-report-only' ||
+      normalized === 'x-frame-options' ||
+      normalized === 'frame-options'
+    ) return;
     res.setHeader(key, value);
   });
   if (upstreamResponse.body) {
@@ -164,23 +172,37 @@ export async function proxyHttpRequest(req, res) {
     metricsService.markRequest(latency, tabId);
     eventBus.emit('log', { level: 'info', type: 'proxy', tabId, url: url.href, status: upstream.status, latencyMs: latency });
 
-    if (env.cacheEnabled && req.method === 'GET') {
-      const contentType = upstream.headers.get('content-type') || '';
-      const isTextLike = /^text\/|application\/(javascript|json|xml|x-www-form-urlencoded)/i.test(contentType);
+    const contentType = upstream.headers.get('content-type') || '';
+    const isTextLike = /^text\/|application\/(javascript|json|xml|x-www-form-urlencoded)/i.test(contentType);
+    const isHtml = contentType.includes('text/html');
 
-      if (isTextLike) {
-        let body = await upstream.text();
-        if (contentType.includes('text/html')) {
-          body = rewriteHtmlForProxy(body, url);
-        }
-        const headers = Object.fromEntries(upstream.headers.entries());
-        cache.set(cacheKey, { status: upstream.status, headers, body });
-        res.status(upstream.status);
-        Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
-        return res.send(body);
+    if (isTextLike) {
+      let body = await upstream.text();
+      if (isHtml) {
+        body = rewriteHtmlForProxy(body, url);
       }
 
-      return streamToClient(upstream, res);
+      const headers = Object.fromEntries(upstream.headers.entries());
+      delete headers['content-length'];
+      delete headers['Content-Length'];
+      if (isHtml) {
+        delete headers['content-security-policy'];
+        delete headers['Content-Security-Policy'];
+        delete headers['content-security-policy-report-only'];
+        delete headers['Content-Security-Policy-Report-Only'];
+        delete headers['x-frame-options'];
+        delete headers['X-Frame-Options'];
+        delete headers['frame-options'];
+        delete headers['Frame-Options'];
+      }
+
+      if (env.cacheEnabled && req.method === 'GET') {
+        cache.set(cacheKey, { status: upstream.status, headers, body });
+      }
+
+      res.status(upstream.status);
+      Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+      return res.send(body);
     }
 
     return streamToClient(upstream, res);
