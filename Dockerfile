@@ -1,13 +1,12 @@
-ARG NODE_BASE_IMAGE=node:22-alpine
-FROM ${NODE_BASE_IMAGE}
+# ---------- BUILD STAGE ----------
+FROM node:22-alpine AS builder
 
 WORKDIR /app/backend
 
-ENV NODE_ENV=production
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-# System deps (minimal but safe for most node native builds)
+# System deps for native builds
 RUN apk add --no-cache \
   git \
   bash \
@@ -19,18 +18,35 @@ RUN apk add --no-cache \
 # Enable pnpm
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
-# Copy backend first (better caching)
+# Copy only dependency files first (better caching)
 COPY backend/package.json ./
 COPY backend/pnpm-lock.yaml* ./
 COPY backend/.npmrc* ./
 
-# Copy full backend source
+# Install ALL deps (scripts ENABLED here)
+RUN pnpm install --no-frozen-lockfile
+
+# Copy full source
 COPY backend/ ./
 
-# IMPORTANT FIX:
-# - ignore scripts prevents wasm/cargo/git-based broken prepack hooks
-# - install only production deps for runtime image
-RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts
+# ---------- RUNTIME STAGE ----------
+FROM node:22-alpine
+
+WORKDIR /app/backend
+
+ENV NODE_ENV=production
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+# Enable pnpm (optional but consistent)
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
+
+# Copy built app + node_modules from builder
+COPY --from=builder /app/backend/node_modules ./node_modules
+COPY --from=builder /app/backend ./
+
+# Optional: prune devDependencies (extra clean)
+RUN pnpm prune --prod
 
 EXPOSE 3001
 
