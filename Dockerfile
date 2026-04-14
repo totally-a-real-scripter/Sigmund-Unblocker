@@ -4,6 +4,8 @@ FROM ${NODE_BASE_IMAGE} AS runtime
 
 WORKDIR /app
 
+RUN apk add --no-cache git python3 make g++
+
 COPY backend/package.json ./package.json
 RUN npm install --omit=dev
 
