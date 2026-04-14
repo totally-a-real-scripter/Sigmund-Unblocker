@@ -11,11 +11,11 @@ services:
     env_file:
       - .env
     environment:
-      PORT: 3000
+      PORT: 3001
       HOST: 0.0.0.0
       WISP_WS_URL: ws://wisp:4000
     ports:
-      - "${PUBLIC_PORT:-3000}:3000"
+      - "${PUBLIC_PORT:-3001}:3001"
     networks:
       - proxy-net
 

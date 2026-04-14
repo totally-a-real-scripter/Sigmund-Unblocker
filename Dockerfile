@@ -32,6 +32,6 @@ COPY backend/ ./
 # - install only production deps for runtime image
 RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
-EXPOSE 3000
+EXPOSE 3001
 
 CMD ["node", "src/server.js"]

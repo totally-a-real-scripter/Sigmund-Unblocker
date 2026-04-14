@@ -4,7 +4,7 @@ dotenv.config();
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'production',
-  port: Number(process.env.PORT || 3000),
+  port: Number(process.env.PORT || 3001),
   host: process.env.HOST || '0.0.0.0',
   allowedOrigins: (process.env.ALLOWED_ORIGINS || '*').split(',').map((v) => v.trim()),
   cacheEnabled: process.env.CACHE_ENABLED !== 'false',
