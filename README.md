@@ -6,8 +6,9 @@ A containerized proxy platform that orchestrates **Ultraviolet + Scramjet + Epox
 
 ```txt
 .
+├── Dockerfile
 ├── backend/
-│   ├── Dockerfile
+│   ├── Dockerfile (compatibility wrapper)
 │   ├── package.json
 │   └── src/
 │       ├── config/env.js
@@ -63,7 +64,7 @@ Browser UI (tabs, url bar, dashboard)
    ```bash
    cp .env.example .env
    ```
-2. Start services:
+2. Build/start with Docker Compose (uses root `Dockerfile` for backend):
    ```bash
    docker compose up --build
    ```
