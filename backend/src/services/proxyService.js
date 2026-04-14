@@ -91,16 +91,9 @@ function buildUpstreamHeaders(req, upstreamUrl, tabId) {
     forwarded.referer = refererTarget.href;
   }
 
-  if (req.headers.origin && req.headers.origin !== 'null') {
-    // Browser-originated requests against this proxy always present this app's
-    // origin. Forwarding that value upstream breaks many CSRF/CORS checks.
-    // Prefer a derived origin from the decoded upstream referer when available.
-    if (refererTarget) {
-      forwarded.origin = refererTarget.origin;
-    } else if (req.headers.origin !== req.protocol + '://' + req.get('host')) {
-      forwarded.origin = req.headers.origin;
-    }
-  }
+  // Do not forward browser Origin to upstream by default.
+  // In a same-origin iframe proxy setup, the browser Origin is usually this app
+  // origin, which causes strict CSRF/CORS failures on many target sites.
 
   const cookieHeader = getUpstreamCookieHeader(tabId, upstreamUrl);
   if (cookieHeader) forwarded.cookie = cookieHeader;
@@ -261,7 +254,10 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   const originalFetch = window.fetch.bind(window);
   window.fetch = (resource, init) => {
     if (typeof resource === 'string') return originalFetch(toProxy(resource), init);
-    if (resource instanceof Request) return originalFetch(new Request(toProxy(resource.url), resource), init);
+    if (resource instanceof Request) {
+      const cloned = resource.clone();
+      return originalFetch(new Request(toProxy(cloned.url), cloned), init);
+    }
     return originalFetch(resource, init);
   };
 
@@ -269,6 +265,40 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
     return originalOpen.call(this, method, toProxy(url), ...rest);
   };
+
+  if (window.EventSource) {
+    const OriginalEventSource = window.EventSource;
+    window.EventSource = function(url, config) {
+      return new OriginalEventSource(toProxy(url), config);
+    };
+    window.EventSource.prototype = OriginalEventSource.prototype;
+  }
+
+  if (window.Worker) {
+    const OriginalWorker = window.Worker;
+    window.Worker = function(url, options) {
+      return new OriginalWorker(toProxy(url), options);
+    };
+    window.Worker.prototype = OriginalWorker.prototype;
+  }
+
+  if (window.SharedWorker) {
+    const OriginalSharedWorker = window.SharedWorker;
+    window.SharedWorker = function(url, options) {
+      return new OriginalSharedWorker(toProxy(url), options);
+    };
+    window.SharedWorker.prototype = OriginalSharedWorker.prototype;
+  }
+
+  if (navigator.serviceWorker && navigator.serviceWorker.register) {
+    const originalRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+    navigator.serviceWorker.register = (scriptURL, options) => originalRegister(toProxy(scriptURL), options);
+  }
+
+  if (navigator.sendBeacon) {
+    const originalSendBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = (url, data) => originalSendBeacon(toProxy(url), data);
+  }
 
   document.addEventListener('click', (event) => {
     const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
