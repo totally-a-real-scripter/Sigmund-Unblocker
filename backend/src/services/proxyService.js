@@ -69,12 +69,23 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
   const runtimePatch = `
 <script>
 (() => {
+  const upstreamDocumentUrl = ${JSON.stringify(upstreamUrl.href)};
+  const sameOriginProxyPrefix = '/api/proxy?url=';
+
+  const isBypassScheme = (value) => (
+    value.startsWith('data:') ||
+    value.startsWith('javascript:') ||
+    value.startsWith('blob:') ||
+    value.startsWith('mailto:') ||
+    value.startsWith('tel:')
+  );
+
   const toProxy = (input) => {
     const value = String(input || '');
-    if (!value || value.startsWith('/api/proxy?url=') || value.startsWith('data:') || value.startsWith('javascript:') || value.startsWith('blob:')) return value;
+    if (!value || value.startsWith(sameOriginProxyPrefix) || isBypassScheme(value) || value.startsWith('#')) return value;
     try {
-      const absolute = new URL(value, window.location.href).href;
-      return '/api/proxy?url=' + encodeURIComponent(absolute);
+      const absolute = new URL(value, upstreamDocumentUrl).href;
+      return sameOriginProxyPrefix + encodeURIComponent(absolute);
     } catch {
       return value;
     }
@@ -96,7 +107,7 @@ function rewriteHtmlForProxy(body, upstreamUrl) {
     const anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (!anchor) return;
     const href = anchor.getAttribute('href');
-    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
     anchor.setAttribute('href', toProxy(href));
   }, { capture: true });
 })();
