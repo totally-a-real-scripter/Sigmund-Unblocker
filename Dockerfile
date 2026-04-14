@@ -6,7 +6,7 @@ WORKDIR /app/backend
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-# System deps (needed for native modules / builds)
+# System deps
 RUN apk add --no-cache \
   git \
   bash \
@@ -18,21 +18,26 @@ RUN apk add --no-cache \
 # Enable pnpm
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
-# Copy dependency files first (better caching)
+# Copy only dependency files first (for caching)
 COPY backend/package.json ./
 COPY backend/pnpm-lock.yaml* ./
 COPY backend/.npmrc* ./
 
-# Install dependencies (ALLOW scripts)
-RUN pnpm install --no-frozen-lockfile
+# 🚫 Disable ALL lifecycle scripts (this is the KEY fix)
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
-# ❌ Remove problematic package AFTER install (prevents wasm/cargo failure)
-RUN pnpm remove @mercuryworkshop/scramjet || true
-
-# Copy full source
+# Copy rest of app
 COPY backend/ ./
 
-# ---------- RUNTIME STAGE ----------
+# ✅ Manually rebuild ONLY what you actually need
+# (epoxy-transport builds fine without scramjet)
+RUN pnpm rebuild @mercuryworkshop/epoxy-transport || true
+
+# Remove dev deps
+RUN pnpm prune --prod
+
+
+# ---------- RUNTIME ----------
 FROM node:22-alpine
 
 WORKDIR /app/backend
@@ -41,17 +46,11 @@ ENV NODE_ENV=production
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-# Enable pnpm
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
-# Copy built app + node_modules from builder
+# Copy built app
+COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend ./
-
-# Keep only production deps
-RUN pnpm prune --prod
-
-# Optional: fix DNS issues (only if your platform is broken)
-# RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf
 
 EXPOSE 3001
 
